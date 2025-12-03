@@ -2,85 +2,82 @@ package anlogger
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/Aninetix/core/aninterface"
 )
 
-// AnLoggerImpl structure principale
 type AnLoggerImpl struct {
-	info    *log.Logger
-	error   *log.Logger
-	debug   *log.Logger
-	debugOn bool
+	dir      string
+	fileName string // optionnel
+	debugOn  bool
 }
 
-// Assurer que AnLoggerImpl implémente l'interface
 var _ aninterface.AnLogger = (*AnLoggerImpl)(nil)
 
-// NewLogger crée un logger avec fichiers ou console et debug activable
-func NewLogger(pathLog string, debugOn bool) aninterface.AnLogger {
-	var infoWriter, errorWriter, debugWriter io.Writer
-
-	if pathLog != "" {
-		_ = os.MkdirAll(filepath.Dir(pathLog), 0755)
-		f, err := os.OpenFile(pathLog, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatalf("Erreur ouverture du fichier log: %v", err)
-			os.Exit(1)
-		}
-		infoWriter = f
-		errorWriter = io.MultiWriter(os.Stderr, f)
-		debugWriter = io.MultiWriter(os.Stdout, f)
-	} else {
-		infoWriter = os.Stdout
-		errorWriter = os.Stderr
-		debugWriter = os.Stdout
-	}
+// ---- constructeur principal ----
+func NewLogger(logDir string, debugOn bool) aninterface.AnLogger {
+	os.MkdirAll(logDir, 0755)
 
 	return &AnLoggerImpl{
-		info:    log.New(infoWriter, "[INFO]  ", log.LstdFlags),
-		error:   log.New(errorWriter, "[ERROR] ", log.LstdFlags),
-		debug:   log.New(debugWriter, "[DEBUG] ", log.LstdFlags),
+		dir:     logDir,
 		debugOn: debugOn,
 	}
 }
 
-// getCaller retourne fichier:ligne de la fonction appelante
-func getCaller(skip int) string {
-	_, file, line, ok := runtime.Caller(skip)
+// ---- génère automatiquement YYYY-MM-DD-type.log si aucun fileName ----
+func (l *AnLoggerImpl) getFilePath(t string) string {
+	if l.fileName != "" {
+		return filepath.Join(l.dir, l.fileName)
+	}
+	date := time.Now().Format("2006-01-02")
+	return filepath.Join(l.dir, fmt.Sprintf("%s-%s.log", date, t))
+}
+
+// ---- crée un writer ----
+func (l *AnLoggerImpl) writerFor(t string) *log.Logger {
+	filePath := l.getFilePath(t)
+	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	return log.New(f, "", log.LstdFlags)
+}
+
+// ---- file:line ----
+func callerInfo() string {
+	_, file, line, ok := runtime.Caller(3)
 	if !ok {
 		return "unknown:0"
 	}
 	return fmt.Sprintf("%s:%d", filepath.Base(file), line)
 }
 
-// Info affiche un message d'information
+// ---- Logs ----
 func (l *AnLoggerImpl) Info(msg string) {
-	caller := getCaller(2)
-	l.info.Printf("[%s] %s", caller, msg)
+	l.writerFor("info").Printf("[INFO]  [%s] %s", callerInfo(), msg)
 }
 
-// Error affiche un message d'erreur
 func (l *AnLoggerImpl) Error(msg string) {
-	caller := getCaller(2)
-	l.error.Printf("[%s] %s", caller, msg)
+	l.writerFor("error").Printf("[ERROR] [%s] %s", callerInfo(), msg)
 }
 
-// Debug affiche un message de debug si activé
 func (l *AnLoggerImpl) Debug(msg string) {
 	if !l.debugOn {
 		return
 	}
-	caller := getCaller(2)
-	l.debug.Printf("[%s] %s", caller, msg)
+	l.writerFor("debug").Printf("[DEBUG] [%s] %s", callerInfo(), msg)
 }
 
-// EnableDebug permet d'activer/désactiver le debug dynamiquement
-func (l *AnLoggerImpl) EnableDebug(on bool) {
-	l.debugOn = on
+// ---- clone pour usage custom ----
+func (l *AnLoggerImpl) WithFile(filename string) aninterface.AnLogger {
+	return &AnLoggerImpl{
+		dir:      l.dir,
+		fileName: filename,
+		debugOn:  l.debugOn,
+	}
 }

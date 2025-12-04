@@ -22,34 +22,55 @@ type AnCore struct {
 	Data   aninterface.StaticData
 }
 
-func InitCore[F any, C any]() (*F, *C, aninterface.AnLogger) {
+type InitOptions struct {
+	LogPath    string
+	ConfigPath string
+	Debug      *bool
+}
 
-	// --- FLAGS ---
+type Option func(*InitOptions)
+
+func WithLogPath(p string) Option {
+	return func(o *InitOptions) { o.LogPath = p }
+}
+
+func WithConfigPath(p string) Option {
+	return func(o *InitOptions) { o.ConfigPath = p }
+}
+
+func WithDebug(b bool) Option {
+	return func(o *InitOptions) { o.Debug = &b }
+}
+
+func ptrBool(b bool) *bool {
+	return &b
+}
+
+func InitCore[F any, C any](opts ...Option) (*F, *C, aninterface.AnLogger) {
+	// default options, e.g. from flags
 	var flg F
+	var cfg C
+
 	if err := anflags.ParseFlags(&flg); err != nil {
 		panic(err)
 	}
 
-	// --- LOGGER ---
-	logPath := helpers.GetFieldString(&flg, "LogPath")
-	if logPath == "" {
-		fmt.Println("Error Developer: LogPath is empty on flags Struct")
-		os.Exit(1)
+	o := InitOptions{
+		LogPath:    helpers.GetFieldString(&flg, "LogPath"),
+		ConfigPath: helpers.GetFieldString(&flg, "ConfigPath"),
+		Debug:      ptrBool(helpers.GetFieldBool(&flg, "Debug")),
 	}
 
-	debugOn := helpers.GetFieldBool(&flg, "Debug")
+	// override with provided optional params
+	for _, opt := range opts {
+		opt(&o)
+	}
 
-	logger := anlogger.NewLogger(logPath, debugOn)
+	// --- LOGGER ---
+	logger := anlogger.NewLogger(o.LogPath, *o.Debug)
 
 	// --- CONFIG ---
-	var cfg C
-	configPath := helpers.GetFieldString(&flg, "ConfigPath")
-	if configPath == "" {
-		fmt.Println("Error Developer: ConfigPath is empty on flags Struct")
-		os.Exit(1)
-	}
-
-	if err := anconfig.LoadConfig(configPath, &cfg); err != nil {
+	if err := anconfig.LoadConfig(o.ConfigPath, &cfg); err != nil {
 		logger.Error(fmt.Sprintf("Erreur chargement config: %v", err))
 		os.Exit(1)
 	}

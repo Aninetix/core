@@ -290,19 +290,6 @@ Les benchmarks sont exécutés sur chaque PR via GitHub Actions:
 | anlogger | Info | ~2,498 | 320 | 6 |
 | helpers | GetFieldString | ~74 | 0 | 0 |
 
-## 🧪 Tests
-
-```bash
-# Exécuter tous les tests
-go test ./... -v
-
-# Avec couverture
-go test ./... -cover
-
-# Exécuter les benchmarks
-go test ./... -bench=. -benchmem
-```
-
 ### Couverture actuelle
 
 | Package | Couverture |

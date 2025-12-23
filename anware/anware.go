@@ -7,13 +7,18 @@ import (
 	"sync"
 )
 
-// --- Types ---
+type AnWareReply struct {
+	Data any
+	Err  error
+}
 
 type AnWareEvent struct {
 	Source string
 	Target string
 	Type   string
 	Data   any
+
+	ReplyTo chan AnWareReply
 }
 
 type AnModule interface {
@@ -36,8 +41,6 @@ type AnWare struct {
 
 	Logger aninterface.AnLogger
 }
-
-// --- Constructeur ---
 
 func NewAnWare(context context.Context, cancel context.CancelFunc, logger aninterface.AnLogger) *AnWare {
 	return &AnWare{

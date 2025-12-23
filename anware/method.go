@@ -1,8 +1,9 @@
 package anware
 
-import "fmt"
-
-// --- Lancement ---
+import (
+	"fmt"
+	"time"
+)
 
 func (m *AnWare) Run() {
 	go m.dispatchLoop()
@@ -24,8 +25,6 @@ func (m *AnWare) Run() {
 	}
 }
 
-// --- Arrêt propre ---
-
 func (m *AnWare) Shutdown() {
 	m.Logger.Info("[ANWARE] Stopping AnWare...")
 
@@ -44,21 +43,17 @@ func (m *AnWare) Shutdown() {
 	m.Logger.Info("[ANWARE] All modules stopped.")
 }
 
-// --- Diffusion à TOUS les modules (pub/sub) ---
-
 func (m *AnWare) Broadcast(msg AnWareEvent) {
 	msgCopy := msg
 	for name := range m.mods {
 		if name == msg.Source {
-			continue // évite d’envoyer à soi-même
+			continue
 		}
 
 		msgCopy.Target = name
 		m.Send(msgCopy)
 	}
 }
-
-// --- Envoi d'événements ---
 
 func (m *AnWare) Send(msg AnWareEvent) {
 	select {
@@ -68,7 +63,34 @@ func (m *AnWare) Send(msg AnWareEvent) {
 	}
 }
 
-// --- Boucle de dispatch ---
+func (m *AnWare) SendSync(
+	source string,
+	target string,
+	msgType string,
+	data any,
+) (any, error) {
+
+	replyCh := make(chan AnWareReply, 1)
+
+	m.Send(AnWareEvent{
+		Source:  source,
+		Target:  target,
+		Type:    msgType,
+		Data:    data,
+		ReplyTo: replyCh,
+	})
+
+	select {
+	case reply := <-replyCh:
+		return reply.Data, reply.Err
+
+	case <-m.context.Done():
+		return nil, fmt.Errorf("anware shutting down")
+
+	case <-time.After(5 * time.Second):
+		return nil, fmt.Errorf("timeout waiting reply from %s", target)
+	}
+}
 
 func (m *AnWare) dispatchLoop() {
 	for {
@@ -103,6 +125,12 @@ func (m *AnWare) routeMessage(msg AnWareEvent) {
 	targetCh, found := m.routes[msg.Target]
 	if !found {
 		m.Logger.Info(fmt.Sprintf("[ANWARE] No module found for target: %s", msg.Target))
+
+		if msg.ReplyTo != nil {
+			msg.ReplyTo <- AnWareReply{
+				Err: fmt.Errorf("target module not found: %s", msg.Target),
+			}
+		}
 		return
 	}
 
@@ -110,5 +138,11 @@ func (m *AnWare) routeMessage(msg AnWareEvent) {
 	case targetCh <- msg:
 	default:
 		m.Logger.Info(fmt.Sprintf("[ANWARE] Channel full for %s, event ignored: %+v", msg.Target, msg))
+
+		if msg.ReplyTo != nil {
+			msg.ReplyTo <- AnWareReply{
+				Err: fmt.Errorf("target module busy: %s", msg.Target),
+			}
+		}
 	}
 }

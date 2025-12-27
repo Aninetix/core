@@ -92,7 +92,7 @@ func BootCore(flg any, cfg any, logger aninterface.AnLogger, ctx context.Context
 
 func (core *AnCore) Run() {
 	core.Logger.Info("[ANCORE] Booting AnCore...")
-	core.AnWare.AutoLoadModules(core.Data, core.Config, core.Flags, core.Logger)
+	core.AnWare.AutoLoadModules(core.Data, core.Config, core.Logger)
 	core.AnWare.Run()
 	core.Logger.Info("[ANCORE] AnCore is running.")
 }

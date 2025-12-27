@@ -5,114 +5,132 @@
 [![CI](https://github.com/Aninetix/aninetix-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Aninetix/aninetix-core/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-**Aninetix-Core** est un framework Go modulaire conçu pour servir de base à tout développement d'applications Go. Il fournit une architecture extensible avec gestion de configuration, logging, et un système de modules basé sur les événements.
-
-## ✨ Fonctionnalités
-
-- 🔧 **Configuration JSON** - Chargement automatique de configuration typée
-- 🚩 **Parsing de flags** - Support des flags CLI avec valeurs par défaut
-- 📝 **Logging flexible** - Système de logging avec niveaux (Info, Error, Debug)
-- 🔌 **Architecture modulaire** - Système de plugins avec communication par événements
-- 📊 **Données système** - Accès aux informations système (OS, CPU, mémoire, réseau)
-- 🔄 **Gestion du contexte** - Support natif de context.Context pour les arrêts gracieux
-
-## 📦 Installation
-
-```bash
-go get github.com/Aninetix/aninetix-core
-```
-
-## 📚 Documentation
-
-### Structure interne
-
-La structure d’Aninet-Core est divisée en **3 parties principales** :
-
-### 1. AnCore
-
-* Contient le fichier `ancore.go` :
-
-  * Définit la **struct `AnCore`**.
-  * Contient 3 fonctions principales :
-
-    * `InitCore()`
-    * `BootCore()`
-    * `Run()`
-	
-* Contient le dossier `AnWare` :
-
-  * Sert de **middleware pour les modules** en dehors du core.
-  * Permet de gérer la logique métier non standard.
-
-### 2. AnInterface
-
-* Contient les interfaces nécessaires pour utiliser les structs et données du core et etre disponible au module pour le typage.
-
-* Exemples :
-
-  * Logger
-  * Données `StaticLocal`
-
-### 3. Internal
-
-* **AnConfig** : loader JSON pour configuration custom.
-* **AnFlags** : loader pour arguments/flags du binaire.
-* **AnLocal** : loader des données statiques (process ID, IP, etc.).
-* **AnLogger** : loader du logger.
-* **Helpers** : fonctions communes et utilitaires disponibles pour AnCore.
+**Aninetix-Core** est un framework Go modulaire servant de socle à des applications **robustes, extensibles et fortement typées**. Il fournit un **core minimal**, un **système de modules auto‑enregistrés**, une **gestion stricte de la configuration**, et une **communication événementielle** claire entre modules.
 
 ---
 
-## Utilisation
+## ✨ Fonctionnalités clés
 
-### 1. Fichier `main.go`
+* 🔧 Chargement automatique de configuration JSON **typée**
+* 🚩 Parsing des flags CLI avec valeurs par défaut
+* 📝 Logging centralisé et extensible
+* 🔌 Architecture modulaire auto‑enregistrée (plugin‑like, sans dépendance directe)
+* 🔍 Validation **stricte** des configurations de modules
+* 🔄 Gestion native du cycle de vie via `context.Context`
 
-Appel du core avec contexte :
+---
+
+## 🧠 Architecture globale
+
+Aninetix‑Core repose sur **3 piliers clairement séparés**.
+
+### 1️⃣ AnCore — le socle applicatif
+
+Responsable du **boot de l’application**, AnCore ne contient **aucune logique métier**.
+
+Responsabilités :
+
+* Parsing des flags globaux
+* Chargement de la configuration applicative
+* Initialisation du logger
+* Création et lancement du système modulaire (`AnWare`)
+
+Fonctions principales :
+
+* `InitCore[F, C]()` — prépare flags, config et logger
+* `BootCore()` — instancie le core runtime
+* `Run()` — déclenche le chargement des modules
+
+---
+
+### 2️⃣ AnInterface — le contrat public
+
+Expose les **interfaces partagées** entre le core et les modules :
+
+* `AnLogger`
+* `StaticData`
+* Types d’événements
+
+➡️ Garantit un **typage fort**, sans couplage entre modules et core.
+
+---
+
+### 3️⃣ AnWare — le système de modules
+
+**Cœur du système modulaire**.
+
+Responsabilités :
+
+* Registre global des modules
+* Auto‑chargement dynamique au runtime
+* Injection de configuration typée
+* Validation stricte des contrats modules
+* Orchestration et communication événementielle
+
+---
+
+## 🚀 Cycle de vie d’une application
+
+### 1. `main.go`
 
 ```go
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	flg, config, logger := ancore.Init_Core[param.Flags, param.Config]()
+	flags, config, logger := ancore.InitCore[anparam.Flags, anparam.Config]()
+	core := ancore.BootCore(flags, config, logger, ctx, cancel)
 
-	AnCore := ancore.Boot_Core(flg, config, logger, ctx, cancel)
-
-	AnCore.Run()
-
+	core.Run()
 	<-ctx.Done()
-	logger.Info("[MAIN] stop func Main(), context finish")
 }
 ```
 
+➡️ Le `main` **ne connaît aucun module**.
+
 ---
 
-### 2. Création du dossier parametre  `param/param.go`
+## 🧩 Paramétrage global de l’application (`anparam`)
 
-Définir les structs custom pour la configuration et les flags :
+Le package `anparam` est **l’unique point d’entrée de l’application** pour :
 
-Exemple :
+* les flags CLI
+* la configuration JSON
+* la liste **exacte** des modules disponibles
+
+### Exemple
 
 ```go
+package anparam
+
+import (
+	anconsol "github.com/Aninetix/core_test/anmodules/anConsol"
+	antest   "github.com/Aninetix/core_test/anmodules/anTest"
+)
+
+// Configuration applicative
+// Reflète EXACTEMENT les modules disponibles
 type Config struct {
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	PeerAnCluster string `json:"peer_cluster"`
+	AnTest   antest.Config   `json:"anTest"`
+	AnConsol anconsol.Config `json:"anConsol"`
 }
 
+// Flags globaux de l’application
 type Flags struct {
-	ConfigPath string        `flag:"config_path" default:"config.json" usage:"Chemin du fichier de configuration"`
-	Debug      bool          `flag:"debug" default:"true" usage:"Activer le mode debug"`
-	LogPath    string        `flag:"log_path" default:"_Data/server_default.log" usage:"Port d'écoute"`
-	Timeout    time.Duration `flag:"timeout" default:"30s" usage:"Timeout (ex: 10s, 1m)"`
+	ConfigPath string `flag:"config_path" default:"data/config.json"`
+	Debug      bool   `flag:"debug" default:"true"`
+	LogPath    string `flag:"log_path" default:"data/server.log"`
 }
 ```
 
+➡️ **Une seule source de vérité**
+➡️ Aucun doublon entre app et modules
+
 ---
 
-### 3. Création d’un module et structure d'appel
+## 🔌 Définition d’un module
 
-Chaque module doit implémenter l’interface standard :
+### Interface standard
 
 ```go
 type AnModule interface {
@@ -123,220 +141,126 @@ type AnModule interface {
 }
 ```
 
-##### Auto-enregistrement du module
+---
+
+## 🧠 Auto‑enregistrement d’un module
+
+Chaque module s’enregistre **automatiquement au build**, via `init()`.
 
 ```go
 func init() {
-	anware.RegisterModule("moduletest", NewAnModule)
+	anware.RegisterModule(anware.ModuleDescriptor{
+		Name:       "anTest",
+		New:        NewModule,
+		ConfigType: Config{},
+	})
 }
 ```
 
-##### Exemple complet de module minimal et prérequis
+➡️ Le core **ne référence jamais explicitement un module**
 
-Info : le anware est générics avec les params, il faut donc les pointers avec le init et le NewAnmodule.
+---
+
+## 🧪 Validation stricte de configuration (IMPORTANT)
+
+Un module peut déclarer des **pré‑requis obligatoires**.
+
+### Interface
 
 ```go
-package anmoduletest
-
-import (
-	"aninet-core/aninterface"
-	"aninet-core/ancore/anware"
-	"context"
-	"fmt"
-)
-
-type AnConsolModule struct {
-	ctx context.Context
-	in  <-chan anware.AnWareEvent
-	aw  *anware.AnWare
-
-	localData aninterface.StaticData
-	logger    aninterface.Logger
-
-	Flags  *anparam.Flags
-	Config *anparam.Config
+type ConfigValidator interface {
+	Validate() error
 }
+```
 
-// ---------- AUTO-ENREGISTREMENT DU MODULE ----------
-func init() {
-	anware.RegisterModule[*param.Flags, *param.Config](
-		"moduletest",
-		NewAnModule[*anparam.Flags, *anparam.Config],
-	)
-}
+### Exemple côté module
 
-// ---------- CONSTRUCTEUR ----------
-func NewAnModule[F *anparam.Flags, C *anparam.Config](
-	local aninterface.StaticData,
-	config C,
-	flags F,
-	logger aninterface.AnLogger,
-) anware.AnModule {
-	return &AnModule{
-		anLocal:  local,
-		anLogger: logger,
-		Flags:    flags,
-		Config:   config,
+```go
+func (c *Config) Validate() error {
+	if c.Host == "" {
+		return errors.New("host is required")
 	}
-}
-
-// ---------- MÉTHODES INTERFACE AnModule ----------
-func (m *AnConsolModule) Name() string {
-	return m.name
-}
-
-func (m *AnConsolModule) Param(ctx context.Context, in <-chan anware.AnWareEvent, aw *anware.AnWare) {
-	m.ctx = ctx
-	m.in = in
-	m.aw = aw
-}
-
-func (m *AnConsolModule) Stop() error {
+	if c.Port == 0 {
+		return errors.New("port is required")
+	}
 	return nil
 }
-
-func (m *AnConsolModule) Start() {
-	// A implémenter selon les besoins
-	m.HandlePersonalisable()
-}
-
 ```
 
+### Comportement
 
-##### Structure personalible et minimum pour intéragir avec les autres modules ou le core
+| Situation             | Résultat        |
+| --------------------- | --------------- |
+| Module absent du JSON | ❌ non chargé    |
+| Champ requis manquant | ❌ non chargé    |
+| Config valide         | ✅ module chargé |
 
-```go
-
-func (m *AnConsolModule) HandlePersonalisable() {
-	m.logger.Info("[module test]")
-	go func() {
-		for {
-			select {
-			case <-m.ctx.Done():
-				return
-			case msg := <-m.in:
-				m.msgChanAnWare(msg)
-			}
-		}
-	}()
-}
-	
-
-func (m *AnConsolModule) msgChanAnWare(msg anware.AnWareEvent) {
-	switch msg.Type {
-	case "status_response":
-		fmt.Printf("[anChain] Status: %+v\n", msg.Data)
-	case "peers_list_response":
-		fmt.Printf("[memberlist] Peers: %+v\n", msg.Data)
-	default:
-		fmt.Printf("[console] Message reçu: %+v\n", msg)
-	}
-}
-
-```
+➡️ **Pas de fallback silencieux**
+➡️ **La configuration est un contrat**
 
 ---
 
-### 3. Import des modules
+## ⚙️ Auto‑chargement des modules
 
-#### Structure d'appel
+Lors du `Run()` :
 
-Pour l'appel, il faut créer un fichier contenant un import de chaque dossier de module.
+1. Extraction de la sous‑configuration
+2. Validation du contrat (`Validate()`)
+3. Instanciation du module
+4. Wiring des channels et du contexte
 
-Conseil, le mettre dans un dossier racine ou seront les modules `aninet_v2/AnModule/`
-
-```go
-package anmodule
-
-import (
-	_ "aninet_v2/AnModule/anmoduletest"
-	_ "aninet_v2/AnModule/anmoduletest2"
-)
-```
-
-Et dans `main.go` :
-
-```go
-import _ "aninet_v2/AnModule"
-```
-
-Cela permet au build d’intégrer les modules dans le core et de communiquer avec eux.
+Les modules invalides sont **ignorés proprement**, sans panic.
 
 ---
 
-## Bonus : envoyer un message dans le core pour terminé le context (a implémenter en fonction des besoins)
+## 📡 Communication inter‑modules
+
+### Asynchrone
 
 ```go
 m.mw.Send(anware.AnWareEvent{
-	Source: m.name,
+	Source: m.Name(),
 	Target: "anWare",
 	Type:   "exit",
 })
 ```
 
+### Synchrone
+
+```go
+result, err := m.mw.SendSync(
+	m.Name(),
+	"anTest",
+	"test_string",
+	payload,
+)
+```
+
+➡️ Le mode synchrone permet un **retour immédiat typé**
+➡️ Le mode asynchrone reste non bloquant
+
 ---
-
-Cette documentation couvre la structure, l’utilisation du core et la création/intégration de modules de manière claire et prête à l’emploi.
-
-## 📊 Benchmarks
-
-Les benchmarks sont exécutés sur chaque PR via GitHub Actions:
-
-| Package | Operation | ns/op | B/op | allocs/op |
-|---------|-----------|-------|------|-----------|
-| anconfig | LoadConfig | ~8,334 | 1,144 | 12 |
-| anflags | ParseFlags | ~1,623 | 704 | 12 |
-| anlocal | LoadStaticData | ~1,862,444 | 93,361 | 169 |
-| anlogger | Info | ~2,498 | 320 | 6 |
-| helpers | GetFieldString | ~74 | 0 | 0 |
-
-### Couverture actuelle
-
-| Package | Couverture |
-|---------|------------|
-| anconfig | 100% |
-| anflags | 90.3% |
-| anlocal | 86.8% |
-| anlogger | 88.9% |
-| helpers | 100% |
-| anware | 58.5% |
 
 ## 📁 Structure du projet
 
 ```
 aninetix-core/
-├── ancore/              # Core principal
-│   ├── ancore.go        # InitCore, BootCore, Run
-├── aninterface/         # Interfaces publiques
-│   ├── AnLogger.go      # Interface Logger
-│   ├── anData.go        # Interface StaticData
-├── aninternal/          # Packages internes
-│   ├── anconfig/        # Chargement config JSON
-│   ├── anflags/         # Parsing des flags CLI
-│   ├── anlocal/         # Données système
-│   ├── anlogger/        # Implémentation du logger
-│   └── helpers/         # Fonctions utilitaires
-├── anware/              # Système de modules
-│   ├── anware.go        # AnWare struct et constructeur
-│   ├── method.go        # Méthodes (Run, Send, Broadcast)
-│   ├── registry.go      # Registre des modules
-├── examples/            # Exemples d'utilisation
-├── LICENSE              # Licence Apache 2.0
-└── README.md            # Ce fichier
+├── ancore/          # Boot & orchestration
+├── aninterface/     # Interfaces publiques
+├── aninternal/      # Implémentations internes
+├── anware/          # Système modulaire
+├── examples/        # Exemples & modules de référence
+└── README.md
 ```
 
-## 🤝 Contribution
+---
 
-Les contributions sont les bienvenues ! Donc allez-y !
+## 🎯 Philosophie
 
-## 📄 Licence
-
-Ce projet est sous licence [Apache 2.0](LICENSE).
-
-## 📞 Support
-
-- 📝 [Ouvrir une issue](https://github.com/Aninetix/aninetix-core/issues)
-- 📖 [Documentation](https://pkg.go.dev/github.com/Aninetix/aninetix-core)
+* **Le core ne dépend de rien**
+* **Les modules déclarent leurs besoins**
+* **La configuration est le contrat**
+* **L’import suffit pour activer**
 
 ---
 

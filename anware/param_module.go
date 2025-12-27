@@ -6,26 +6,19 @@ import (
 	"unicode"
 )
 
-// --- utils ---
-
 func toPascalCase(s string) string {
 	if s == "" {
 		return ""
 	}
 
-	// anHttp -> AnHttp
 	r := []rune(s)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
 }
 
-// --- CONFIG ---
-
 func extractSubConfig(appConfig any, moduleName string, expectedType any) any {
 	return extractSubStruct(appConfig, moduleName, expectedType, "Config")
 }
-
-// --- CORE LOGIC ---
 
 func extractSubStruct(root any, moduleName string, expectedType any, kind string) any {
 	if root == nil {
@@ -42,7 +35,6 @@ func extractSubStruct(root any, moduleName string, expectedType any, kind string
 	}
 
 	fieldName := toPascalCase(moduleName)
-
 	field := rootVal.FieldByName(fieldName)
 	if !field.IsValid() {
 		panic(fmt.Sprintf(
@@ -67,6 +59,27 @@ func extractSubStruct(root any, moduleName string, expectedType any, kind string
 		))
 	}
 
-	// return pointer to field
+	fieldPtr := field.Addr().Interface()
+	fieldVal := reflect.ValueOf(fieldPtr).Elem()
+
+	for i := 0; i < fieldVal.NumField(); i++ {
+		subField := fieldVal.Type().Field(i)
+		if subField.Name == "" {
+			continue
+		}
+
+		if !fieldVal.Field(i).IsZero() {
+			continue
+		}
+
+		if len(subField.Name) > 5 && subField.Name[len(subField.Name)-5:] == "_Glob" {
+			globalName := subField.Name[:len(subField.Name)-5]
+			globalVal := rootVal.FieldByName(globalName)
+			if globalVal.IsValid() && globalVal.Type() == fieldVal.Field(i).Type() {
+				fieldVal.Field(i).Set(globalVal)
+			}
+		}
+	}
+
 	return field.Addr().Interface()
 }

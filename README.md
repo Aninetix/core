@@ -2,7 +2,6 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/Aninetix/aninetix-core.svg)](https://pkg.go.dev/github.com/Aninetix/aninetix-core)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Aninetix/aninetix-core)](https://goreportcard.com/report/github.com/Aninetix/aninetix-core)
-[![CI](https://github.com/Aninetix/aninetix-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Aninetix/aninetix-core/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 **Aninetix-Core** est un framework Go modulaire servant de socle à des applications **robustes, extensibles et fortement typées**. Il fournit un **core minimal**, un **système de modules auto‑enregistrés**, une **gestion stricte de la configuration**, et une **communication événementielle** claire entre modules.

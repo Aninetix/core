@@ -13,15 +13,14 @@ func (m *AnWare) Run() {
 
 		ch := m.routes[name]
 
-		mod.Param(m.context, ch, m)
+		mod.SetRuntime(name, m.context, ch, m)
 
-		go func(mod AnModule, in <-chan AnWareEvent) {
+		go func(mod AnModule) {
 			defer m.wg.Done()
 			mod.Start()
-		}(mod, ch)
+		}(mod)
 
 		m.Logger.Info("[ANWARE] Module loaded: " + name)
-
 	}
 }
 

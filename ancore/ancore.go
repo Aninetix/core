@@ -22,30 +22,6 @@ type AnCore struct {
 	Data   aninterface.StaticData
 }
 
-type InitOptions struct {
-	LogPath    string
-	ConfigPath string
-	Debug      *bool
-}
-
-type Option func(*InitOptions)
-
-func WithLogPath(p string) Option {
-	return func(o *InitOptions) { o.LogPath = p }
-}
-
-func WithConfigPath(p string) Option {
-	return func(o *InitOptions) { o.ConfigPath = p }
-}
-
-func WithDebug(b bool) Option {
-	return func(o *InitOptions) { o.Debug = &b }
-}
-
-func ptrBool(b bool) *bool {
-	return &b
-}
-
 func InitCore[F any, C any](opts ...Option) (*F, *C, aninterface.AnLogger) {
 	// default options, e.g. from flags
 	var flg F
@@ -71,7 +47,7 @@ func InitCore[F any, C any](opts ...Option) (*F, *C, aninterface.AnLogger) {
 
 	// --- CONFIG ---
 	if err := anconfig.LoadConfig(o.ConfigPath, &cfg); err != nil {
-		logger.Error(fmt.Sprintf("Erreur chargement config: %v", err))
+		logger.Error(fmt.Sprintf("[ANCORE] Erreur chargement config: %v", err))
 		os.Exit(1)
 	}
 

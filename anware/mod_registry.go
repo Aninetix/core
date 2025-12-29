@@ -27,7 +27,7 @@ var moduleRegistry = map[string]ModuleDescriptor{}
 
 func RegisterModule(desc ModuleDescriptor) {
 	if _, ok := moduleRegistry[desc.Name]; ok {
-		panic("module already registered: " + desc.Name)
+		panic("[ANWARE] FATAL: module already registered: " + desc.Name)
 	}
 	moduleRegistry[desc.Name] = desc
 }
@@ -58,31 +58,40 @@ func (m *AnWare) AutoLoadModules(
 ) {
 	for name, desc := range moduleRegistry {
 
-		cfg := extractSubConfig(appConfig, name, desc.ConfigType)
-		cfgVal := reflect.ValueOf(cfg)
+		cfg, err := extractSubConfig(appConfig, name, desc.ConfigType)
+		if err != nil {
+			logger.Error(err.Error())
+			continue
+		}
 
+		cfgVal := reflect.ValueOf(cfg)
 		if cfgVal.Kind() == reflect.Ptr {
 			cfgVal = cfgVal.Elem()
 		}
 
 		if cfgVal.IsZero() {
-			fmt.Print("module disabled, config value not Set: " + name)
+			logger.Info("[ANWARE] module disabled (empty config): " + name)
 			continue
 		}
 
 		if v, ok := cfg.(ConfigValidator); ok {
 			if err := v.Validate(); err != nil {
 				logger.Error(
-					fmt.Sprintf("[ANWARE] module %s disabled: invalid config: %v", name, err),
+					fmt.Sprintf(
+						"[ANWARE] module %s disabled: invalid config: %v",
+						name,
+						err,
+					),
 				)
 				continue
 			}
 		}
+
 		mod := desc.New(staticData, cfg, logger)
 
 		m.routes[name] = make(chan AnWareEvent, 128)
 		m.mods[name] = mod
 
-		logger.Info("[ANWARE] Auto-loaded module: " + name)
+		logger.Info("[ANWARE] auto-loaded module: " + name)
 	}
 }

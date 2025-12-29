@@ -16,13 +16,22 @@ func toPascalCase(s string) string {
 	return string(r)
 }
 
-func extractSubConfig(appConfig any, moduleName string, expectedType any) any {
-	return extractSubStruct(appConfig, moduleName, expectedType, "Config")
+func extractSubConfig(
+	appConfig any,
+	moduleName string,
+	expectedType any,
+) (any, error) {
+	return extractSubStruct(appConfig, moduleName, expectedType)
 }
 
-func extractSubStruct(root any, moduleName string, expectedType any, kind string) any {
+func extractSubStruct(
+	root any,
+	moduleName string,
+	expectedType any,
+) (any, error) {
+
 	if root == nil {
-		panic(fmt.Sprintf("[ANWARE] %s root is nil", kind))
+		panic("[ANWARE] FATAL: config root is nil")
 	}
 
 	rootVal := reflect.ValueOf(root)
@@ -31,32 +40,34 @@ func extractSubStruct(root any, moduleName string, expectedType any, kind string
 	}
 
 	if rootVal.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("[ANWARE] %s root must be a struct", kind))
+		panic(fmt.Sprintf(
+			"[ANWARE] FATAL: config root must be a struct, got %s",
+			rootVal.Kind(),
+		))
 	}
 
 	fieldName := toPascalCase(moduleName)
 	field := rootVal.FieldByName(fieldName)
+
 	if !field.IsValid() {
-		panic(fmt.Sprintf(
-			"[ANWARE] %s missing for module '%s' (expected field %s.%s)",
-			kind,
+		return nil, fmt.Errorf(
+			"[ANWARE] module '%s' disabled: missing config field %s.%s",
 			moduleName,
 			rootVal.Type().Name(),
 			fieldName,
-		))
+		)
 	}
 
 	expected := reflect.TypeOf(expectedType)
 	actual := field.Type()
 
 	if expected != actual {
-		panic(fmt.Sprintf(
-			"[ANWARE] %s type mismatch for module '%s': expected %s, got %s",
-			kind,
+		return nil, fmt.Errorf(
+			"[ANWARE] module '%s' disabled: config type mismatch (expected %s, got %s)",
 			moduleName,
 			expected,
 			actual,
-		))
+		)
 	}
 
 	fieldPtr := field.Addr().Interface()
@@ -64,9 +75,6 @@ func extractSubStruct(root any, moduleName string, expectedType any, kind string
 
 	for i := 0; i < fieldVal.NumField(); i++ {
 		subField := fieldVal.Type().Field(i)
-		if subField.Name == "" {
-			continue
-		}
 
 		if !fieldVal.Field(i).IsZero() {
 			continue
@@ -75,11 +83,12 @@ func extractSubStruct(root any, moduleName string, expectedType any, kind string
 		if len(subField.Name) > 5 && subField.Name[len(subField.Name)-5:] == "_Glob" {
 			globalName := subField.Name[:len(subField.Name)-5]
 			globalVal := rootVal.FieldByName(globalName)
+
 			if globalVal.IsValid() && globalVal.Type() == fieldVal.Field(i).Type() {
 				fieldVal.Field(i).Set(globalVal)
 			}
 		}
 	}
 
-	return field.Addr().Interface()
+	return fieldPtr, nil
 }
